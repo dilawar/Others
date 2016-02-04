@@ -17,6 +17,7 @@ from brian2 import *
 import networkx as nx
 import helper
 import pylab 
+import spike_to_gcamp as s2g
 
 # Construct LHB
 nNeuronsInLHB = 200
@@ -58,16 +59,21 @@ inhSynapse.connect( True, p = 0.02 )
 lhbMonitor = SpikeMonitor( lhb )
 
 def main( ):
-    run( 6*second )
+    runTime = 6
+    run( runTime*second )
     nspikesDict = helper.spikes_in_interval( lhbMonitor, 6, interval = 0.5)
     rows = []
     for k in nspikesDict:
-        numSpikeRow = map(lambda x: float(len(x)), nspikesDict[k])
-        rows.append(numSpikeRow)
-    pylab.imshow( rows , interpolation = 'none' , aspect = 'auto' )
-    pylab.colorbar( )
-    pylab.show()
+        numSpikeRow = nspikesDict[k]
+        start = np.zeros( 6 / 1e-4 , dtype = np.float)
+        try:
+            r = s2g.spikes_to_fluroscence( start, numSpikeRow,  dt = 1e-4 )
+            rows.append( r )
+        except Exception as e:
+            pass
 
+    pylab.imshow(rows, interpolation = 'none', aspect = 'auto' )
+    pylab.show( )
 
 if __name__ == '__main__':
     main()

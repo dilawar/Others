@@ -1,0 +1,3 @@
+[submodule "Vinay/image_analysis_submodule"]
+	path = Vinay/image_analysis_submodule
+	url = https://github.com/dilawar/image_analysis

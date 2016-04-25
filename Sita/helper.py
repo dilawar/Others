@@ -14,6 +14,7 @@ __status__           = "Development"
 import numpy as np
 import math
 import brian2 as _b_
+import pylab
 
 def spikes_in_interval( monitor, simtime, interval ):
     print('[INFO] Binning spikes in interval of %s second' % interval)
@@ -23,7 +24,7 @@ def spikes_in_interval( monitor, simtime, interval ):
         result = []
         spikeTrain = spike_dict[k]
         space = np.arange(0, simtime, interval)
-        if len(space) < 2:
+        if len(space) < 3:
             continue
         intervals = []
         for i, e in enumerate(space[1:]):
@@ -36,3 +37,6 @@ def spikes_in_interval( monitor, simtime, interval ):
             result.append(spikes)
         results[k] = result
     return results
+
+if __name__ == '__main__':
+    main()

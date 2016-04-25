@@ -20,7 +20,7 @@ import pylab
 import spike_to_gcamp as s2g
 
 # Construct LHB
-nNeuronsInLHB = 200
+nNeuronsInLHB = 20 # 00
 # Fraction of LHB neurons which are inhibitory
 inhibitoryFraction = 0.5
 
@@ -59,21 +59,30 @@ inhSynapse.connect( True, p = 0.02 )
 lhbMonitor = SpikeMonitor( lhb )
 
 def main( ):
-    runTime = 6
+    runTime = 5
     run( runTime*second )
-    nspikesDict = helper.spikes_in_interval( lhbMonitor, 6, interval = 0.5)
-    rows = []
-    for k in nspikesDict:
-        numSpikeRow = nspikesDict[k]
-        start = np.zeros( 6 / 1e-4 , dtype = np.float)
-        try:
-            r = s2g.spikes_to_fluroscence( start, numSpikeRow,  dt = 1e-4 )
-            rows.append( r )
-        except Exception as e:
-            pass
+    pylab.subplot(2, 1, 1)
+    plot( lhbMonitor.t, lhbMonitor.i, '.')
 
-    pylab.imshow(rows, interpolation = 'none', aspect = 'auto' )
-    pylab.show( )
+    binInterval = 0.5
+    nspikesDict = helper.spikes_in_interval( lhbMonitor, runTime, binInterval)
+
+    dtForFluroscenceComputation = 0.01
+    rows = []
+    for k in nspikesDict.keys():
+        print('[DEBUG] ======== Bins for neuron %s' % k )
+        vec = nspikesDict[k]
+        print('         %s' % vec)
+        r = np.zeros( runTime / dtForFluroscenceComputation )
+        for _bin in vec:
+            _bin = np.sort( _bin )
+            if _bin.shape[0] > 0:
+                r = s2g.spikes_to_fluroscence(r, _bin, dtForFluroscenceComputation)
+        rows.append( r )
+    pylab.subplot(2, 1, 2)
+    pylab.plot( rows[4] )
+    pylab.plot( rows[5] )
+    pylab.savefig( './spikes_raster.png' )
 
 if __name__ == '__main__':
     main()

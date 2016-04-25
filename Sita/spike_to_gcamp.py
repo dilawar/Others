@@ -18,18 +18,21 @@ import math
 def spike_to_fluroscence( vec, start_time, dt, rise_time = 0.2, fall_half_time = 0.6):
     N = len(vec)
     startIdx = int(start_time / dt)
-    t = np.arange(0, (N*dt - start_time), dt)
+    t = dt * np.arange(0, N - startIdx)
     f1 = np.clip(t / rise_time, 0, 1)
     f2 = np.clip(np.exp( - (t-rise_time)/ fall_half_time), 0, 1)
     prefix = np.zeros( start_time / dt )
     func = np.hstack( (prefix, f1 + f2 - 1.0) )
-    return np.array(func, dtype=np.float)
+    assert len(func) == len(vec)
+    return func
 
 def spikes_to_fluroscence( init_activity, spike_at, dt, **kwargs):
+    print('[DEBUG] Counting spikes in %s' % spike_at)
     rise_time = kwargs.get('rise_time', 0.2)
     fall_half_time = kwargs.get('fall_half_time', 0.6)
     for s in spike_at:
-        res = spike_to_fluroscence( init_activity, s, dt
+        res = spike_to_fluroscence( init_activity, s
+                , dt
                 , rise_time
                 , fall_half_time
                 )
@@ -37,9 +40,11 @@ def spikes_to_fluroscence( init_activity, spike_at, dt, **kwargs):
     return init_activity
 
 def main():
-    test = [ 0.1, 0.2, 0.21 ]
+    test = 0.1 * np.random.random_integers(0, 200, 100)
+    test = np.sort( test )
+    print('INPUT : %s' % test)
     dt = 1e-2
-    camp = np.zeros( 4/dt )
+    camp = np.zeros( test.max() /dt )
     camp = spikes_to_fluroscence( camp, test, dt)
     pylab.plot( camp )
     pylab.show()

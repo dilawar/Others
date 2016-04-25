@@ -63,7 +63,7 @@ def main():
     vid = imageio.get_reader( videofile )
     nFrames = 0
     frames = []
-    for i in range(1000, 1500):
+    for i in range(1000, 3000):
         img = vid.get_data( i )
         frames.append( img )
         nFrames += 1

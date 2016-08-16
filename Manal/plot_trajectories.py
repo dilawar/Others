@@ -53,25 +53,41 @@ def plot( xpos, ypos, velocity, angle, plot_type = 'simple' ):
         raise UserWarning( 'Not implemented : quiver' )
         return
 
-    traA = plt.subplot2grid( (2,2), (0,0), colspan = 2 )
-    velA = plt.subplot2grid( (2,2), (1,0), colspan = 1 )
-    angA = plt.subplot2grid( (2,2), (1,1), colspan = 1 )
-    
-
+    traA = plt.subplot2grid( (2,3), (0,0), rowspan = 2, colspan = 2, aspect = 1 )
+    velA = plt.subplot2grid( (2,3), (0,2), colspan = 1 )
+    angA = plt.subplot2grid( (2,3), (1,2), colspan = 1 )
     startN = 1
     p = traA.scatter( xpos[startN:], ypos[startN:], c = velocity[startN:], marker = '.', lw=0 )
 
     # start position
     start = (xpos[0], ypos[0] )
-    textStart = ( xpos[0] - 10, ypos[0] - 100 )
+    # textStart = ( xpos[0] - 100, ypos[0] - 100 )
+    textStart = ( 500, 500 )
     traA.annotate( 'start', xy = start, xytext = textStart
-            , arrowprops = dict( facecolor = 'black', shrink = 0.1 ) 
+            , arrowprops = dict( facecolor = 'black', shrink = 0.1 
+                , width = 2
+                )
             )
 
     traA.set_title( 'Trajectory' )
     traA.set_xlabel( 'x position' )
     traA.set_ylabel( 'y position' )
-    plt.colorbar( p , ax = traA )
+    traA.set_xlim( [ 0, 1000 ] )
+    traA.set_ylim( [ 0, 1000 ] )
+
+    circle = matplotlib.patches.Circle(
+            xy = (500,500), radius = 500
+            , edgecolor = "k", facecolor = "none"
+            )
+    plt.colorbar( p , ax = traA, orientation = 'horizontal' )
+    traA.add_patch(circle)
+
+    # make the axis invisible 
+    # traA.axis( 'off' )
+    # for loc, spine in traA.spines.iteritems():
+        # use ax.spines.items() in Python 3
+        # spine.set_linewidth(0)
+
     # X, Y = np.meshgrid( range( len(xpos)), range( len(ypos) ) )
     # plt.quiver( X, Y, xpos, ypos, angle )
     velA.hist( velocity, bins = 20 )

@@ -43,6 +43,11 @@ def process( files ):
     print( '[INFO] Total unique genes = %d' % len( allGenes ) )
 
     venns = defaultdict( list )
+
+    # Initialized the keys.
+    for k in [ 1, 2, 3, 12, 13, 23, 123 ]:
+        venns[k] = []
+
     for g in allGenes:
         key = []
         for i, d in enumerate(data):

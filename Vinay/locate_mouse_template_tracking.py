@@ -17,7 +17,9 @@ import numpy as np
 
 cap_ = None
 box_ = None
-template_ = None
+templates_ = [ ]
+lastGoodTemplate_ = None
+lastGoodLocation_ = None
 
 def onmouse(event, x, y, flags, params):
     global current_frame_, bbox_
@@ -44,6 +46,11 @@ def get_bounding_box(frame):
             current_frame_ = clone.copy()
         elif key == ord("q"):
             break
+        elif key == ord("n"):
+            print( 'Fetching next frame' )
+            frame = fetch_a_good_frame( )
+            frame = toGrey( frame )
+            current_frame_ = frame
     cv2.waitKey(1)
     cv2.destroyWindow('Bound_eye')
     (r1,c1), (r2,c2) = bbox_
@@ -54,69 +61,13 @@ def get_bounding_box(frame):
 def toGrey( frame ):
     return cv2.cvtColor( frame, cv2.COLOR_BGR2GRAY )
 
-
-def merge_contours(cnts, img):
-    """Merge these contours together. And create an image"""
-    for c in cnts:
-        hull = cv2.convexHull(c)
-        cv2.fillConvexPoly(img, hull, 0)
-    return img
-
-
-def accept_contour_as_possible_eye( contour, threshold = 0.1 ):
-    # The eye has a certain geometrical shape. If it can not be approximated by
-    # an ellipse which major/minor < 0.8, ignore it.
-    return True
-    if len(contour) < 5:
-        # Too tiny to be an eye
-        return True
-    ellipse = cv2.fitEllipse( contour )
-    axes = ellipse[1]
-    minor, major = axes
-    if minor / major > threshold:
-        # Cool, also the area of ellipse and contour area cannot ve very
-        # different.
-        cntArea = cv2.contourArea( contour )
-        ellipseArea = np.pi * minor * major 
-        if cntArea < 1:
-            return False
-        return True
-    else:
-        return False
-
-
-def compute_open_eye_index(frame):
-    """ Accepts a frame and compute the hull-image of eye.
-
-        reutrn hull image and open-eye index. 
-        Larger openEyeIndex means that eye was open.
-    """
-    # Find edge in frame
-    s = np.mean(frame)
-    edges = cv2.Canny(frame, s + np.std( frame), np.max( frame) - np.std(frame) )
-    cnts = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
-    cntImg = np.ones(frame.shape)
-    merge_contours(cnts[0], cntImg)
-
-    # cool, find the contour again and convert again. Sum up their area.
-    im = np.array((1-cntImg) * 255, dtype = np.uint8)
-    cnts = cv2.findContours(im, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-
-    hullImg = np.ones(frame.shape)
-    openEyeVals = []
-    for c in cnts[0]:
-        c = cv2.convexHull(c)
-        if accept_contour_as_possible_eye( c ):
-            cv2.fillConvexPoly(hullImg, c, 0, 8)
-            openEyeVals.append(cv2.contourArea(c))
-    hullImg = np.array((1-hullImg) * 255, dtype = np.uint8)
-    openEyeIndex = sum( openEyeVals )
-    return hullImg, openEyeIndex
-
-
 def display_frame( frame, delay = 40 ):
-    cv2.imshow( 'frame', frame )
-    cv2.waitKey( delay )
+    try:
+        cv2.imshow( 'frame', frame )
+        cv2.waitKey( delay )
+    except Exception as e:
+        print( '[warn] could not display frame' )
+        print( '\t Error was %s' % e )
 
 def clip_frame( frame, box ):
     (r1, c1), (r2, c2 ) = box
@@ -129,22 +80,53 @@ def generate_box( (c,r), width, height ):
     rightCorner = (leftCorner[0] + width, leftCorner[1] + height)
     return leftCorner, rightCorner 
 
-def get_region_of_interest( frame, method = 'box' ):
-    """ When method == 'template', use template matching algorithm to get 
-    the region of interest. Unfortunately it does not work on blinking eye
-    """
-    global template_ , box_
-    if method == 'template':
-        tr, tc = template_.shape    # Rows and cols in template.
-        res = cv2.matchTemplate( frame, template_, cv2.TM_SQDIFF_NORMED )
-        minv, maxv, (ctopL, rtopL), maxl = cv2.minMaxLoc( res )
-        # (ctopL, rtopL) is the point where we have best match.
-        # box = generate_box( minl, tc, tr )
-        matchBox = ( ctopL, rtopL ), (ctopL + tc, rtopL + tr )
-        print( "Bounding box for result %s" % str(matchBox) )
-        return clip_frame( frame, matchBox )
+def apply_template( frame, tmp ):
+    tr, tc = tmp.shape    # Rows and cols in template.
+    res = cv2.matchTemplate( frame, tmp, cv2.TM_SQDIFF_NORMED )
+    minmax = cv2.minMaxLoc( res )
+    minv, maxv, minl, maxl = minmax
+    return minl
+
+def is_far_from_last_good_location( loc ):
+    global lastGoodLocation_ 
+    if lastGoodLocation_ is None:
+        return False
+    x1, y1 = lastGoodLocation_ 
+    x2, y2 = loc 
+    dist = ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5 
+    if dist < 5.0:
+        return True
+    return False
+
+
+def track( frame ):
+    global lastGoodTemplate_
+    global lastGoodLocation_ 
+
+    # if last good location of mice is not known, then we apply the first
+    # template and get it.
+    if lastGoodTemplate_ is not None:
+        indx = lastGoodTemplate_[0]
+        ranges = np.mod( 
+                np.arange( indx, indx + len( templates_ ), 1 )
+                , len( templates_ ) 
+                )
     else:
-        return clip_frame( frame, box_ )
+        ranges = np.arange( 0, len( templates_ ) )
+
+    for i in ranges:
+        tmp = templates_[i]
+        tr, tc = tmp.shape    # Rows and cols in template.
+        loc = apply_template( frame, tmp )
+        if is_far_from_last_good_location( loc ):
+            continue 
+        else:
+            lastGoodLocation_ = loc
+            lastGoodTemplate_ = (i, tmp)
+            break
+    r, c = lastGoodLocation_
+    print( "Last known good location is %s" % str( lastGoodLocation_ ) )
+    return frame[c-100:c+100,r-100:r+100]
 
 def is_a_good_frame( frame ):
     if frame.max( ) < 100 or frame.min() > 150:
@@ -169,62 +151,42 @@ def fetch_a_good_frame(  ):
 
 def process( args ):
     global cap_
-    global box_, template_
-    cap_ = cv2.VideoCapture( args.video_device )
+    global box_, templates_
+    cap_ = cv2.VideoCapture( args.file )
     nFames = cap_.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT )
     fps = float( cap_.get( cv2.cv.CV_CAP_PROP_FPS ) )
 
     print( '[INFO] FPS = %f' % fps )
     frame = fetch_a_good_frame( )
-    frame = helper.toGrey( frame )
-    box_, template_ = helper.get_bounding_box( frame )
-    # box_ = [ (425, 252), (641, 420 ) ]
-    # template_ = clip_frame( frame, box_ )
-    # Now track the template in video
-    blinkValues = [ ]
-    towrite = []
-    csvFile = '%s_eye_bink_index.csv' % args.video_device 
-    with open( csvFile, 'w') as f:
-        f.write( 'time,value\n')
-    
+    frame = toGrey( frame )
+    if args.template is None:
+        box_, template_ = get_bounding_box( frame )
+        cv2.imwrite( 'template.png', template_ )
+    else:
+        template_ = cv2.imread( args.template, 0 )
+
+    rows,cols = template_.shape
+    for angle in range(0, 360, 2):
+        M = cv2.getRotationMatrix2D( (cols/2,rows/2), angle ,1)
+        dst = cv2.warpAffine(template_, M, (cols,rows) )
+        templates_.append( dst )
+        
     while True:
         totalFramesDone = cap_.get( cv2.cv.CV_CAP_PROP_POS_FRAMES ) 
         if totalFramesDone + 1 >= nFames:
             print( '== All done' )
             break
         frame = fetch_a_good_frame( )
-        frame = helper.toGrey( frame )
+        frame = toGrey( frame )
         # print( template_.shape, resultFrame.shape )
         # display_frame( np.hstack( (resFromClipping, resFromTemplateMatch)), 10 )
-        roi = get_region_of_interest( frame )
-        eyeHull, eyeIndex = helper.compute_open_eye_index( roi )
-        blinkValues.append( eyeIndex )
-        towrite.append( '%g,%g' % ((totalFramesDone / fps), eyeIndex ))
-
-        if args.verbose:
-            display_frame( np.hstack( (roi, eyeHull) ), 1 )
-
-
-        if len( blinkValues ) % 100 == 0:
-            print( '[INFO] Done %d out of %d frames.' % ( totalFramesDone
-                , nFames ) )
-            with open( csvFile, 'a' ) as f:
-                line = "%s\n" % ('\n'.join( towrite ) )
-                print( line )
-                f.write( line )
-            towrite = []
+        track( frame )
+        if lastGoodLocation_:
+            c,r = lastGoodLocation_ 
+            cv2.circle( frame, (c,r), 20, 255, 3 )
             if args.verbose:
-                gp.plot( np.array( blinkValues[-1000:] )
-                    , title = 'Open Eye index - last 1000 frames'
-                    , terminal = 'x11'
-                    )
+                display_frame( frame, 1 )
 
-    # Also write the left-over values.
-    with open( csvFile, 'a' ) as f:
-        f.write( '\n'.join( towrite ) )
-
-    print( '[INFO] Done writing data to %s' % csvFile )
-    print( ' == All done from me folks' )
 
 
 def main(args):
@@ -238,7 +200,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=description)
     class Args: pass 
     args = Args()
-    parser.add_argument('--video-device', '-f'
+    parser.add_argument('--file', '-f'
         , required = False
         , default = 0
         , help = 'Path of the video file or camera index. default camera 0'
@@ -254,6 +216,12 @@ if __name__ == '__main__':
         , action = 'store_true'
         , default = False
         , help = 'Show you whats going on?'
+        )
+    parser.add_argument('--template', '-t'
+        , required = False
+        , default = None
+        , type = str
+        , help = 'Template file'
         )
     parser.parse_args(namespace=args)
     main( args )

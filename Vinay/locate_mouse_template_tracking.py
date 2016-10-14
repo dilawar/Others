@@ -137,8 +137,11 @@ def is_a_good_frame( frame ):
         return False
     return True
 
-def fetch_a_good_frame(  ):
+def fetch_a_good_frame( drop = 0  ):
     global cap_
+    for i in range( drop ):
+        ret, frame = cap_.read()
+
     ret, frame = cap_.read()
     if ret:
         if is_a_good_frame( frame ):
@@ -176,7 +179,7 @@ def process( args ):
         if totalFramesDone + 1 >= nFames:
             print( '== All done' )
             break
-        frame = fetch_a_good_frame( )
+        frame = fetch_a_good_frame( drop = 5 )
         frame = toGrey( frame )
         # print( template_.shape, resultFrame.shape )
         # display_frame( np.hstack( (resFromClipping, resFromTemplateMatch)), 10 )

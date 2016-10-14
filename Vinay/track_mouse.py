@@ -13,13 +13,11 @@ __email__            = ""
 __status__           = "Development"
 
 import cv2
+import math
 import numpy as np
 
-cap_ = None
-box_ = None
-templates_ = [ ]
-lastGoodTemplate_ = None
-lastGoodLocation_ = None
+trajectory_ = [ ]
+curr_loc_ = None
 
 def onmouse(event, x, y, flags, params):
     global current_frame_, bbox_
@@ -31,32 +29,6 @@ def onmouse(event, x, y, flags, params):
     elif event == cv2.EVENT_LBUTTONUP:
         bbox_.append((x, y))
         cv2.rectangle(current_frame_, bbox_[0], (x,y), 0,2)
-
-def get_bounding_box(frame):
-    global current_frame_, bbox_
-    current_frame_ = frame.copy()
-    title = "Bound eye and press 'q' to quit."
-    cv2.namedWindow(title)
-    cv2.setMouseCallback(title, onmouse)
-    clone = frame.copy()
-    while True:
-        cv2.imshow(title, current_frame_)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("c"):
-            current_frame_ = clone.copy()
-        elif key == ord("q"):
-            break
-        elif key == ord("n"):
-            print( 'Fetching next frame' )
-            frame = fetch_a_good_frame( )
-            frame = toGrey( frame )
-            current_frame_ = frame
-    cv2.waitKey(1)
-    cv2.destroyWindow('Bound_eye')
-    (r1,c1), (r2,c2) = bbox_
-    print( 'User defined bounding box %s' % bbox_ )
-    cv2.destroyAllWindows( )
-    return bbox_, frame[c1:c2,r1:r2]
 
 def toGrey( frame ):
     return cv2.cvtColor( frame, cv2.COLOR_BGR2GRAY )
@@ -99,7 +71,7 @@ def is_far_from_last_good_location( loc ):
     return False
 
 
-def track( frame ):
+def track_using_templates( frame ):
     global lastGoodTemplate_
     global lastGoodLocation_ 
 
@@ -128,6 +100,7 @@ def track( frame ):
     print( "Last known good location is %s" % str( lastGoodLocation_ ) )
     return frame[c-100:c+100,r-100:r+100]
 
+
 def is_a_good_frame( frame ):
     if frame.max( ) < 100 or frame.min() > 150:
         print( '[WARN] not a good frame: too bright or dark' )
@@ -137,8 +110,10 @@ def is_a_good_frame( frame ):
         return False
     return True
 
-def fetch_a_good_frame(  ):
+def fetch_a_good_frame( drop = 0 ):
     global cap_
+    for i in range( drop ):
+        ret, frame = cap_.read()
     ret, frame = cap_.read()
     if ret:
         if is_a_good_frame( frame ):
@@ -149,45 +124,42 @@ def fetch_a_good_frame(  ):
         print( '[Warn] Failed to fetch a frame' )
         return None
 
+def track_using_trajectories( cur, prev ):
+    global curr_loc_ 
+    p0 = cv2.goodFeaturesToTrack( prev, 100, 0.1, 30 )
+    p1, status, err = cv2.calcOpticalFlowPyrLK( prev, cur, p0 )
+    mat = cv2.estimateRigidTransform( p0, p1, False )
+    # print cv2.warpAffine( curr_loc_, mat, dsize=(2,1) )
+    if mat is not None:
+        dx, dy = mat[:,2]
+        da = math.atan2( mat[1,0], mat[0,0] )
+        trajectory_.append( (dx, dy, da) )
+        print( "Transformation", dx, dy, da )
+        curr_loc_ = (curr_loc_[0] - int(dy), curr_loc_[1] - int(dx))
+
 def process( args ):
     global cap_
     global box_, templates_
+    global curr_loc_ 
+    curr_loc_ =  np.array( [ args.col, args.row ], dtype = np.uint8 )
     cap_ = cv2.VideoCapture( args.file )
     nFames = cap_.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT )
     fps = float( cap_.get( cv2.cv.CV_CAP_PROP_FPS ) )
-
     print( '[INFO] FPS = %f' % fps )
-    frame = fetch_a_good_frame( )
-    frame = toGrey( frame )
-    if args.template is None:
-        box_, template_ = get_bounding_box( frame )
-        cv2.imwrite( 'template.png', template_ )
-    else:
-        template_ = cv2.imread( args.template, 0 )
-
-    rows,cols = template_.shape
-    for angle in range(0, 360, 2):
-        M = cv2.getRotationMatrix2D( (cols/2,rows/2), angle ,1)
-        dst = cv2.warpAffine(template_, M, (cols,rows) )
-        templates_.append( dst )
-        
+    cur = fetch_a_good_frame( )
+    cur = toGrey( cur )
     while True:
         totalFramesDone = cap_.get( cv2.cv.CV_CAP_PROP_POS_FRAMES ) 
         if totalFramesDone + 1 >= nFames:
             print( '== All done' )
             break
-        frame = fetch_a_good_frame( )
-        frame = toGrey( frame )
-        # print( template_.shape, resultFrame.shape )
-        # display_frame( np.hstack( (resFromClipping, resFromTemplateMatch)), 10 )
-        track( frame )
-        if lastGoodLocation_:
-            c,r = lastGoodLocation_ 
-            cv2.circle( frame, (c,r), 20, 255, 3 )
-            if args.verbose:
-                display_frame( frame, 1 )
-
-
+        prev = cur.copy()
+        cur = fetch_a_good_frame( drop = 5 )
+        cur = toGrey( cur )
+        track_using_trajectories( cur, prev )
+        cv2.circle( cur, curr_loc_, 20, 255, 2 )
+        cv2.imshow( 'Frame', cur )
+        cv2.waitKey( 1 )
 
 def main(args):
     # Extract video first
@@ -223,6 +195,13 @@ if __name__ == '__main__':
         , type = str
         , help = 'Template file'
         )
+
+    parser.add_argument('--col', '-c'
+            , required = True , type = int , help = 'Column of mouse'
+            )
+    parser.add_argument('--row', '-r'
+            , required = True , type = int, help = 'Row index of mouse'
+            )
     parser.parse_args(namespace=args)
     main( args )
 

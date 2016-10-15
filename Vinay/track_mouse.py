@@ -14,10 +14,12 @@ __status__           = "Development"
 
 import cv2
 import math
+from collections import defaultdict
 import numpy as np
 
 trajectory_ = [ ]
 curr_loc_ = None
+corners_ = defaultdict( int )
 
 def onmouse(event, x, y, flags, params):
     global current_frame_, bbox_
@@ -58,6 +60,30 @@ def apply_template( frame, tmp ):
     minmax = cv2.minMaxLoc( res )
     minv, maxv, minl, maxl = minmax
     return minl
+
+def onmouse( event, x, y, flags, params ):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        curr_loc_ = (x, y)
+        print( '[INFO] Current location is %s' % str( curr_loc_ ) )
+
+def initialize_location( frame ):
+    global curr_loc_
+    current_frame_ = frame.copy()
+    title = "Click on mouse 'q' to quit 'n' for next frame"
+    cv2.namedWindow(title)
+    cv2.setMouseCallback(title, onmouse)
+    clone = frame.copy()
+    while True:
+        cv2.imshow(title, current_frame_)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("c"):
+            current_frame_ = clone.copy()
+        elif key == ord( "n" ):
+            current_frame_ = fetch_a_good_frame( )
+        elif key == ord("q"):
+            break
+    cv2.waitKey(1)
+    cv2.destroyWindow( title )
 
 def is_far_from_last_good_location( loc ):
     global lastGoodLocation_ 
@@ -124,9 +150,86 @@ def fetch_a_good_frame( drop = 0 ):
         print( '[Warn] Failed to fetch a frame' )
         return None
 
+def threshold_frame( frame ):
+    mean, std = frame.mean(), frame.std( )
+    thres = max(0, mean - 2*std)
+    frame[ frame > thres ] = 255
+    return frame
+
+def find_edges( frame ):
+    u, std = frame.mean(), frame.std()
+    return cv2.Canny( frame, u, u + std, 11 )
+
+def on_the_mouse( p, frame ):
+    w = 20
+    c, r = p
+    rect = frame[c-w:c+w,r-w:r+w]
+
+def distance( p0, p1 ):
+    x0, y0 = p0
+    x1, y1 = p1
+    return ((x0 - x1)**2 + (y0 - y1)**2) ** 0.5
+
+def draw_point( frame, points, thickness = 2):
+    for p in points:
+        (x, y) = p.ravel()
+        cv2.circle( frame, (x,y), 2, 30, thickness )
+    return frame
+
+
+def update_mouse_location( points ):
+    global curr_loc_
+    newPoints = [ ]
+    if points is None:
+        return None
+    sumC = 0.0
+    sumR = 0.0
+
+    for p in points:
+        (x,y) = p.ravel( )
+        if distance( (x,y), curr_loc_ ) < 100:
+            newPoints.append( (x,y) )
+            sumR += y
+            sumC += x
+
+    ellipese = cv2.fitEllipse( np.array( newPoints ) )
+    if len( newPoints ) > 0:
+        curr_loc_ = ( int(sumC / len( newPoints )), int(sumR / len( newPoints)) )
+    return ellipese, newPoints
+
+def insert_int_corners( points ):
+    global corners_
+    if points is None:
+        return 
+    for p in points:
+        (x,y) = p.ravel()
+        corners_[ (x,y) ] += 1
+
+
 def track_using_trajectories( cur, prev ):
     global curr_loc_ 
-    p0 = cv2.goodFeaturesToTrack( prev, 100, 0.1, 30 )
+    p0 = cv2.goodFeaturesToTrack( cur, 200, 0.01, 5 )
+    insert_int_corners( p0 )
+
+    draw_point( cur, p0, 1 )
+
+    ellipse, p1 = update_mouse_location( p0 )
+    if p1 is not None:
+        for p in p1:
+            cv2.circle( cur, p, 10, 20, 2 )
+    cv2.ellipse( cur, ellipse, 1 )
+    cv2.circle( cur, curr_loc_, 10, 255, 3)
+    display_frame( cur, 1 )
+    return 
+    # Find a contour
+    prevE = find_edges( prev )
+    curE = find_edges( cur )
+    img = curE - prevE
+    cnts, hier = cv2.findContours( img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE )
+    cnts = filter( ismouse, cnts )
+    cv2.drawContours( img, cnts, -1, 255, 3 )
+    display_frame( img, 1)
+    return 
     p1, status, err = cv2.calcOpticalFlowPyrLK( prev, cur, p0 )
     mat = cv2.estimateRigidTransform( p0, p1, False )
     # print cv2.warpAffine( curr_loc_, mat, dsize=(2,1) )
@@ -141,25 +244,27 @@ def process( args ):
     global cap_
     global box_, templates_
     global curr_loc_ 
-    curr_loc_ =  np.array( [ args.col, args.row ], dtype = np.uint8 )
     cap_ = cv2.VideoCapture( args.file )
     nFames = cap_.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT )
     fps = float( cap_.get( cv2.cv.CV_CAP_PROP_FPS ) )
     print( '[INFO] FPS = %f' % fps )
     cur = fetch_a_good_frame( )
     cur = toGrey( cur )
+    if args.col and args.row:
+        curr_loc_ = (args.col, args.row )
+    else:
+        curr_loc_ =  initialize_location( cur )
+    # cur = threshold_frame( cur )
     while True:
         totalFramesDone = cap_.get( cv2.cv.CV_CAP_PROP_POS_FRAMES ) 
         if totalFramesDone + 1 >= nFames:
             print( '== All done' )
             break
-        prev = cur.copy()
-        cur = fetch_a_good_frame( drop = 5 )
+        prev = cur
+        cur = fetch_a_good_frame( )
         cur = toGrey( cur )
+        # cur = threshold_frame( cur )
         track_using_trajectories( cur, prev )
-        cv2.circle( cur, curr_loc_, 20, 255, 2 )
-        cv2.imshow( 'Frame', cur )
-        cv2.waitKey( 1 )
 
 def main(args):
     # Extract video first
@@ -176,12 +281,6 @@ if __name__ == '__main__':
         , required = False
         , default = 0
         , help = 'Path of the video file or camera index. default camera 0'
-        )
-    parser.add_argument('--bbox', '-b'
-        , required = False
-        , nargs = '+'
-        , type = int
-        , help = 'Bounding box : topx topy width height'
         )
     parser.add_argument('--verbose', '-v'
         , required = False

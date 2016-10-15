@@ -1,3 +1,5 @@
+from __future__ import print_function 
+
 """
 Locate mouse by template tracking.
 
@@ -19,7 +21,8 @@ import numpy as np
 
 trajectory_ = [ ]
 curr_loc_ = None
-corners_ = defaultdict( int )
+static_features_ = defaultdict( int )
+static_features_img_ = None
 
 def onmouse(event, x, y, flags, params):
     global current_frame_, bbox_
@@ -179,6 +182,7 @@ def draw_point( frame, points, thickness = 2):
 
 def update_mouse_location( points ):
     global curr_loc_
+    global static_features_
     newPoints = [ ]
     if points is None:
         return None
@@ -188,6 +192,10 @@ def update_mouse_location( points ):
     for p in points:
         (x,y) = p.ravel( )
         if distance( (x,y), curr_loc_ ) < 100:
+            # if this point is in one of static feature point, reject it
+            if static_features_[ (x,y) ] > 5:
+                print( 'x', end = '')
+                continue
             newPoints.append( (x,y) )
             sumR += y
             sumC += x
@@ -198,16 +206,24 @@ def update_mouse_location( points ):
     return ellipese, newPoints
 
 def insert_int_corners( points ):
-    global corners_
+    """Insert or update feature points into an image by increasing the pixal
+    value by 1. If a feature point is static, its count will increase
+    drastically.
+    """
+    global static_features_img_
+    global static_features_
     if points is None:
         return 
     for p in points:
         (x,y) = p.ravel()
-        corners_[ (x,y) ] += 1
+        static_features_[ (x,y) ] += 1
+        static_features_img_[ y, x ] += 1
+
 
 
 def track_using_trajectories( cur, prev ):
     global curr_loc_ 
+    global static_features_img_
     p0 = cv2.goodFeaturesToTrack( cur, 200, 0.01, 5 )
     insert_int_corners( p0 )
 
@@ -220,6 +236,7 @@ def track_using_trajectories( cur, prev ):
     cv2.ellipse( cur, ellipse, 1 )
     cv2.circle( cur, curr_loc_, 10, 255, 3)
     display_frame( cur, 1 )
+    # cv2.imshow( 'static features', static_features_img_ )
     return 
     # Find a contour
     prevE = find_edges( prev )
@@ -244,12 +261,14 @@ def process( args ):
     global cap_
     global box_, templates_
     global curr_loc_ 
+    global static_features_img_ 
     cap_ = cv2.VideoCapture( args.file )
     nFames = cap_.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT )
     fps = float( cap_.get( cv2.cv.CV_CAP_PROP_FPS ) )
     print( '[INFO] FPS = %f' % fps )
     cur = fetch_a_good_frame( )
     cur = toGrey( cur )
+    static_features_img_ = np.zeros( cur.shape )
     if args.col and args.row:
         curr_loc_ = (args.col, args.row )
     else:

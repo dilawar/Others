@@ -18,7 +18,7 @@ import matplotlib.cm as cm
 import numpy as np
 import random
 import pandas
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -29,13 +29,13 @@ mpl.rcParams.update( { 'font.size' : 28 } )
 
 random.seed( 0 )
 
-families_ = { }
+families_ = OrderedDict( )
 targets_  = [ ]
-colors_ = {}
+colors_ = OrderedDict( )
 
 def plotthis( data ):
     global families_, targets_
-    data = data.sort_values( by='Species' )
+    data = data.sort_values( by='type' )
     families = data[ 'Species' ].drop_duplicates( )
     for i, family in enumerate( families ):
         items = data[ data['Species'] == family ]
@@ -65,9 +65,11 @@ def plotthis( data ):
     legends = [ ]
     cmap = cm.get_cmap( 'Paired_r', lut = 36 )
     # for family in sorted( families_, reverse = True ):
+    typeZeroEndsAngel = 0
     for family in families_:
         groupLabel.append( family )
         groupPos.append( theta )
+
 
         group = families_[ family ]
         groupSize = len( group )
@@ -120,7 +122,17 @@ def plotthis( data ):
             thetaGridPos.append( 180 /  np.pi * theta )
             label = item
             thetaGridLabels.append( label )
+
         theta += spacing * stepTheta
+        # Compute the boundry of all family of type 0
+        _type = data[ data['Species'] == family ]['type'].values[0]
+        if _type == 0:
+            typeZeroEndsAngel = theta
+
+    # Draw a background slice for all type = 0.
+    ax.bar( 0, 100, typeZeroEndsAngel, color = 'blue', bottom = 50 
+            , alpha = 0.1
+            )
 
     # Set family names
     ax.set_yticks( [] , [] )
@@ -165,7 +177,7 @@ def set_label( ax, pos, labels, frac = 1.1 ):
         
 def main():
     """docstring for main"""
-    data = pandas.read_table( sys.argv[1], sep = ',' )
+    data = pandas.read_table( sys.argv[1], sep = '\t' )
     plotthis( data )
     
 

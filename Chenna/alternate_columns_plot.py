@@ -31,19 +31,27 @@ def main():
             ycols.append( c )
 
     plt.subplot( 211 )
-    img =  [ ]
+    img = [ ]
     for x, y in zip( xcols, ycols ):
         xdata = data[ x ].values
         ydata = data[ y ].values
-        plt.plot( xdata / 1e6, ydata, label = '%s vs %s' % (x, y) )
+        plt.plot( xdata / 1e6, ydata 
+                , label = '%s vs %s' % (x, y) )
+        means = np.mean( ydata )
         img.append( ydata )
 
     plt.ylabel( 'sRNA abundance' )
     plt.xlabel( 'Chromosome coordinates (Mb)' )
 
     plt.subplot( 212 )
-    plt.imshow( np.vstack( img ), interpolation = None, aspect = 'auto' )
-    plt.colorbar( )
+    # plt.imshow( np.vstack( img ), interpolation = None, aspect = 'auto' )
+    # plt.colorbar( )
+    img = np.vstack( img )
+    print img.shape
+    means = np.mean( img, axis = 0 )
+    err = np.std( img, axis = 0 )
+    plt.errorbar( xdata/1e6, means, yerr=err, label = 'Mean' )
+    plt.legend(loc='best', framealpha=0.4)
 
 
     outfile = '%s.png' % sys.argv[1]

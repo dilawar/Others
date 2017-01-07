@@ -35,10 +35,12 @@ def main():
     for x, y in zip( xcols, ycols ):
         xdata = data[ x ].values
         ydata = data[ y ].values
-        plt.plot( xdata / 1e6, ydata 
-                , label = '%s vs %s' % (x, y) )
+        plt.plot( xdata / 1e6, ydata , 'o'
+                , label = '%s' % y )
         means = np.mean( ydata )
         img.append( ydata )
+
+    plt.legend( framealpha= 0, fontsize = 8 )
 
     plt.ylabel( 'sRNA abundance' )
     plt.xlabel( 'Chromosome coordinates (Mb)' )

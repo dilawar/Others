@@ -16,13 +16,24 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import reader
+from config import _logger
 
 def main( ):
-    images = reader.collect_data( sys.argv[1] )
-    channels = images.keys( )
-    for channel in sorted(images):
-        print channel
-        print images[ channel ]
+    channelDict = reader.collect_data( sys.argv[1] )
+    channels = channelDict.keys( )
+    firstFrames = [ channelDict[ch][0] for ch in channels ]
+
+    # First test is on the sum of frames. 
+    plt.figure( )
+    for i, ch in enumerate( channels ):
+        # plt.subplot( len( channels ), 1, i + 1 )
+        yvec = [ np.sum(x[1]) for x in channelDict[ ch ] ]
+        plt.plot( yvec, label = ch )
+        plt.legend(loc='best', framealpha=0.4)
+
+    plt.savefig( 'test1.png' )
+
+
 
 if __name__ == '__main__':
     main()

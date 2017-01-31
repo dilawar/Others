@@ -19,6 +19,7 @@ import tifffile
 import re
 from collections import defaultdict
 import tifffile
+from config import _logger
 
 def collect_data( dirname ):
     tiffs = defaultdict( list )
@@ -34,4 +35,11 @@ def collect_data( dirname ):
                             (f, tifffile.imread(os.path.join( d, f )))
                             )
 
-    return tiffs
+    channels = tiffs.keys( )
+    _logger.info( 'Channels found %s' % channels )
+    _logger.info( 'Frames in each channel %d' % len( tiffs.values()[0] )  )
+    channelDict = { }
+    for ch in channels:
+        data = sorted( tiffs[ ch ] )
+        channelDict[ ch ] = data 
+    return channelDict

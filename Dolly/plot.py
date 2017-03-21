@@ -33,6 +33,11 @@ families_ = OrderedDict( )
 targets_  = [ ]
 colors_ = OrderedDict( )
 
+def sortFamily( keys ):
+    print( keys )
+    keys[8], keys[10] = keys[10], keys[8]
+    return keys
+
 def plotthis( data ):
     global families_, targets_
     data = data.sort_values( by='type' )
@@ -66,17 +71,23 @@ def plotthis( data ):
     cmap = cm.get_cmap( 'Paired_r', lut = 36 )
     # for family in sorted( families_, reverse = True ):
     typeZeroEndsAngel = 0
-    for family in families_:
+
+    familitySorted = sortFamily( families_.keys( ) )
+
+    for family in familitySorted:
         groupLabel.append( family )
         groupPos.append( theta )
-
 
         group = families_[ family ]
         groupSize = len( group )
 	#print(( 'Goup %s size %d' % ( family, groupSize ) ))
         # print( '\t%s' % rnas )
         allTargets = list( set( group[ 'Annotation' ] ) )
-        for gi, item in enumerate( set(group[ 'Strain' ]) ):
+
+        groups = list( set( group[ 'Strain' ] ) )
+        # print( groups )
+
+        for gi, item in enumerate( groups ):
             targets = set( group[ group['Strain'] == item ]['Annotation'].values )
             theta += stepTheta
             for i, t in enumerate(targets):

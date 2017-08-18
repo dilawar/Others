@@ -72,10 +72,11 @@ def find_cells( image, green, blue ):
         if len( cell ) >= 5:
             cells.append( cell )
             with open( cellFile, 'a' ) as f:
-                b = np.mean( [ blue[x,y] for y, x in cell ] )
-                g = np.mean( [ green[x,y] for y, x in cell ] )
-                bbyg.append( b / g )
-                f.write( "%d,%d,%d,%g,%g,%g\n" % (y, x, len(cell), b, g, b/g))
+                b = np.sum( [ blue[x,y] for y, x in cell ] )
+                g = np.sum( [ green[x,y] for y, x in cell ] )
+                bbyg.append( float(b) / g )
+                f.write( "%d,%d,%d,%g,%g,%g\n" % (y, x, len(cell), b, g,
+                    float(b)/g))
     return cells, newImg, bbyg
 
 def process( filename ):

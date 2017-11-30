@@ -13,8 +13,8 @@ import sys
 import os
 import urllib2
 from bs4 import BeautifulSoup
-import pandas as pd
 import query_pimadb
+import pickle
 
 def get_chain( nid ):
     print( '[INFO] Getting ids for chain %s' % nid )
@@ -32,16 +32,18 @@ def get_chain( nid ):
             , idsToDownload 
             )
 
-    frames = [ ]
+    data = dict( )
     for i, _id in enumerate( idsToDownload ):
         print( '[%d/%d] Downloading %s' % (i, len(idsToDownload), _id))
-        res = query_pimadb.query_db( _id, [4, 5] )
-        res = [ float( x ) / float( y ) for x, y in res ]
-        frames.append( pd.DataFrame( { _id : res } ) )
+        res = query_pimadb.query_db( _id, [0, 4, 5] )
+        entry = { }
+        for z, x, y in res:
+            entry[z] = float(x)/float(y)
+        data[ _id ] = entry
 
-    data = pd.concat( frames, axis = 1 )
-    outfile = '%s_chain.csv' % nid 
-    data.to_csv( outfile, index = False, float_format = '%g' )
+    outfile = '%s_chain.pickle' % nid 
+    with open( outfile, 'wb' ) as f:
+        f.dump( data )
     print( 'Saved to %s' % outfile )
 
 

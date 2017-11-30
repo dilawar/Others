@@ -32,11 +32,13 @@ def query_db( q, idx ):
             if re.match( r'^[A-Z]-[A-Z]', tds[0].text):
                 rows.append( [ x.text.strip( ) for x in tds ] )
     
+    res = [ ]
     for r in rows:
         x = r
         if len( idx ) > 0:
             x = [ r[i] for i in idx ]
-        print( ' '.join( x ) )
+        res.append( x )
+    return res
 
 
 def main( ):
@@ -44,7 +46,9 @@ def main( ):
     idx = [ ]
     if len( sys.argv ) > 2:
         idx = [ int(x) for x in sys.argv[2:] ]
-    query_db( query, idx )
+    res = query_db( query, idx )
+    res = [ ' '.join( x ) for x in res ]
+    print( '\n'.join( res ) )
 
 if __name__ == '__main__':
     main()

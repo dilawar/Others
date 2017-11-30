@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """rotation_2.py: 
 
 """
@@ -43,7 +45,7 @@ def get_chain( nid ):
 
     outfile = '%s_chain.pickle' % nid 
     with open( outfile, 'wb' ) as f:
-        f.dump( data )
+        pickle.dump( data, f )
     print( 'Saved to %s' % outfile )
 
 

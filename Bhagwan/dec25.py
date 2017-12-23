@@ -18,19 +18,34 @@ import datetime
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-mpl.style.use( 'bmh' )
-mpl.rcParams['axes.linewidth'] = 0.2
-mpl.rcParams['lines.linewidth'] = 1.0
+try:
+    mpl.style.use( 'seaborn-poster' )
+except Exception as e:
+    print( e )
+    pass
 
+tempdir = '_temp'
+if not os.path.exists( tempdir ):
+    os.makedirs( tempdir )
 
-def plot( df ):
+def timeToStr( t ):
+    return '%02d:%02d' % ( t.hour, t.minute )
+
+def process( filepath, plot = True  ):
+    filename = os.path.basename( filepath )
+
+    imgpath = os.path.join( tempdir, '%s.png' % filename )
+    respath = os.path.join( tempdir, '%s.csv' % filename )
+
+    print( 'Processing %s' % filepath )
+    df = pd.read_csv( filepath, sep = ',' )
+    df['timestamp' ] = pd.to_datetime( df[ 'Time' ], format='%H:%M' ).dt.time
     df = df[ df['Bouts'] <= 16 ]
 
     startT = datetime.datetime.strptime( '8:00', '%H:%M' )
-
     res = pd.DataFrame( )
     t0s, t1s, turnovers = [], [], []
-    for i in range( 24 ):
+    for i in range( 21 ):
         dt = datetime.timedelta( minutes = 30 )
         t0 = (startT + i * dt).time()
         t1 = (startT + (i+1) * dt).time()
@@ -43,26 +58,54 @@ def plot( df ):
     res[ 't_start' ] = t0s
     res[ 't_end' ] = t1s
     res[ 'turnover' ] = turnovers
-    res.to_csv( '%s_turnover.csv' % sys.argv[1] )
+    res.to_csv( respath )
 
-    xvec, yvec = list(range(len(turnovers))), turnovers
+    if plot:
+        plt.figure( )
+        xvec, yvec = list(range(len(turnovers))), turnovers
+        newX = np.linspace( min(xvec), max(xvec), 100 )
+        smoothY = sinp.spline( xvec, yvec, newX )
+        plt.bar( xvec, yvec )
+        plt.xticks( xvec[::2], [ timeToStr( x) for x in t0s[::2] ], rotation = 'vertical' )
+        plt.ylabel( 'Turnover' )
+        plt.xlabel( 'Bin Size = 30 min' )
+        plt.tight_layout( )
+        plt.savefig( imgpath )
+        plt.close( )
+        print( 'All done' )
 
-    newX = np.linspace( min(xvec), max(xvec), 100 )
-    smoothY = sinp.spline( xvec, yvec, newX )
-
-    # plot.
-    plt.plot( xvec, yvec, '-o', lw=2, label = 'Turnover' )
-    #plt.plot( newX, smoothY, lw = 2 )
-    plt.ylabel( 'Turnover' )
-    plt.savefig( '%s.png' % sys.argv[1] )
-    print( 'All done' )
-
-
+    return res
 
 def main( ):
-    df = pd.read_csv( sys.argv[1], sep = ',' )
-    df['timestamp' ] = pd.to_datetime( df[ 'Time' ], format='%H:%M' ).dt.time
-    plot( df )
+    files = [ ]
+    for d, ds, fs in os.walk( sys.argv[1] ):
+        for f in fs:
+            if '.csv' in f:
+                files.append( os.path.join( d, f ) )
+
+    results = [ process( f ) for f in files ]
+    img = [ ]
+    plt.subplot( 211 )
+    for i, res in enumerate( results ):
+        t0s = res[ 't_start' ]
+        yvec = res[ 'turnover' ]
+        xvec = np.arange( 0, len(yvec) )
+        img.append( yvec )
+        plt.bar( xvec + i * 0.1, res[ 'turnover' ], width=0.05, alpha = 0.8)
+
+    plt.xticks( xvec[::2], [ timeToStr( x) for x in t0s[::2] ], rotation = 'vertical' )
+
+    img = np.array( img )
+    yerr = np.std( img, axis = 0 )
+    mean = np.mean( img, axis=0)
+    plt.subplot( 212 )
+    plt.plot( xvec, mean, lw = 5, color = 'blue' )
+    plt.fill_between( xvec, mean + yerr, mean - yerr, alpha = 0.5 )
+    plt.xticks( xvec[::2], [ timeToStr( x) for x in t0s[::2] ], rotation = 'vertical' )
+    plt.xlabel( 'Time Bin = 30 m' )
+    plt.suptitle( 'Turnover', fontsize = 20 )
+    plt.tight_layout( rect = (0,0,1,0.9) )
+    plt.savefig( 'results.png' )
 
 if __name__ == '__main__':
     main()

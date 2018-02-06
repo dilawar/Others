@@ -1,0 +1,4 @@
+digraph xor 
+{
+    i1, i2 -> n1 -> O;
+}

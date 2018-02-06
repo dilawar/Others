@@ -1,4 +1,6 @@
 digraph xor 
 {
-    i1, i2 -> n1 -> O;
+    i1, i2 -> n1 -> o1;
+    o1, i1 -> n2 -> o2;
+    i2, o2 -> n3 -> O;
 }

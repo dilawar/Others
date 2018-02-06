@@ -16,6 +16,8 @@ import numpy as np
 import itertools
 import re
 import networkx as nx
+import subprocess
+
 
 def randomly_assign_parameter( n, g ):
     for s, t in g.in_edges( n ):
@@ -96,13 +98,14 @@ def print_network( g ):
 
 def main( ):
     template = nx.drawing.nx_agraph.read_dot( sys.argv[1] )
-
     N = 10000
     for i in range( N ):
-        if i % 1000 == 0:
-            print( '%d steps are done out of %d' % (i, N) )
         g = template.copy( )
         create_random_network( g )
+        if i == 0:
+            print_network( g )
+        if i % 1000 == 0:
+            print( '%d steps are done out of %d' % (i, N) )
         expr = compute_expr( g, 'O' )
         tt, minTerms = truth_table( expr )
         if minTerms == [1,2]:

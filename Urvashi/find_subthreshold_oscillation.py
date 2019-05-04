@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """analyze.py: 
 
 """
@@ -11,10 +13,13 @@ __status__           = "Development"
 
 import sys
 import os
+import pyabf
 import matplotlib.pyplot as plt
-plt.style.use('seaborn-talk')
+try:
+    plt.style.use('seaborn-talk')
+except Exception as e:
+    pass
 import scipy.fftpack as fft
-import pywt
 import scipy.signal
 import numpy as np
 import pandas as pd
@@ -30,6 +35,22 @@ axFFT1 = plt.subplot2grid(gridSize, (1,2), rowspan=1)
 ax2 = plt.subplot2grid( gridSize, (1,0), colspan=2)
 
 #  axImgImg = plt.subplot2grid( gridSize, (2,1), colspan=1, rowspan=2)
+
+def abf_to_dfs(files):
+    dfs = {}
+    for f in files:
+        abf = pyabf.ABF(f)
+        abf.setSweep(0)
+        df = pd.DataFrame()
+        header = abf.headerText
+        for sl in abf.sweepList:
+            abf.setSweep(sl)
+            x, y = abf.sweepX, abf.sweepY
+            df[ f'Time' ] = x
+            df[ f'Trace{sl}' ] = y
+        dfs[f] = df
+    return dfs
+
 
 def plot_axis(ax, x, y):
     ax.plot(x, y)
@@ -100,7 +121,7 @@ def analyze(x, y):
 
 def process(df):
     tvec = df['Time']
-    y1 = df['Trace 0']
+    y1 = df['Trace0']
     a = int(32.2/dt_)
     b = a+6000
     x, y = tvec[a:b], y1[a:b]
@@ -116,10 +137,33 @@ def process(df):
     plt.tight_layout()
     plt.savefig(f'{__file__}.png')
 
-def main():
-    df = pd.read_csv(sys.argv[1])
-    process(df)
+def main(args):
+    dfs = abf_to_dfs(args.input_abf)
+    for f, df in dfs.items():
+        print(df.columns)
+        process(df)
 
 if __name__ == '__main__':
-    main()
+    import argparse
+    # Argument parser.
+    description = '''Subthreshold oscillations.'''
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--input-abf', '-i'
+        , required = True, nargs = '+'
+        , help = 'Input file (abf format)'
+        )
+    parser.add_argument('--output', '-o'
+        , required = False
+        , help = 'Output file'
+        )
+    parser.add_argument( '--debug', '-d'
+        , required = False
+        , default = 0
+        , type = int
+        , help = 'Enable debug mode. Default 0, debug level'
+        )
+    class Args: pass 
+    args = Args()
+    parser.parse_args(namespace=args)
+    main(args)
 

@@ -22,19 +22,19 @@ import pandas as pd
 fs_ = 20e3
 dt_ = 1.0/fs_
 
-plt.figure(figsize=(15, 10))
-gridSize = (4, 3)
-ax1 = plt.subplot2grid(gridSize, (0,0), colspan = 2 )
-axFFT = plt.subplot2grid(gridSize, (0,2))
-ax2 = plt.subplot2grid( gridSize, (1,0), colspan = 2 )
+plt.figure(figsize=(15, 8))
+gridSize = (3, 3)
+ax1 = plt.subplot2grid(gridSize, (0,0), colspan=2)
+axFFT = plt.subplot2grid(gridSize, (0,2), rowspan=1)
+axFFT1 = plt.subplot2grid(gridSize, (1,2), rowspan=1)
+ax2 = plt.subplot2grid( gridSize, (1,0), colspan=2)
 
-axImgReal = plt.subplot2grid( gridSize, (2,0), colspan=2, rowspan=2)
 #  axImgImg = plt.subplot2grid( gridSize, (2,1), colspan=1, rowspan=2)
 
 def plot_axis(ax, x, y):
     ax.plot(x, y)
 
-def butter_bandpass(lowcut=1, highcut=100, order=6):
+def butter_bandpass(lowcut=0.001, highcut=1000, order=6):
     nyq = 0.5 * fs_
     low = lowcut/nyq
     high = highcut/nyq
@@ -66,7 +66,7 @@ def analyze(x, y):
     ax1.plot(x, y, alpha=0.8)
     y1 = y.copy()
     thres = y1.mean() #+ y1.std()
-    y1[y1<thres] = thres
+    #  y1[y1<thres] = thres
     y1 = y1 - y1.min()
     y1 = y1 / y1.max()
     ax11 = ax1.twinx()
@@ -74,18 +74,21 @@ def analyze(x, y):
 
     axFFT.psd(y, NFFT=2048, Fs=fs_, noverlap=56) #, detrend='linear')
     axFFT.set_xscale('log')
-    #  axFFT.set_xlim(0, 200)
 
-    sos = butter_bandpass(lowcut=10, order=15)
+
+    sos = butter_bandpass(lowcut=10, highcut=100, order=20)
     ySmooth = scipy.signal.sosfilt(sos, y1)
     ax2.plot(x, ySmooth, alpha=0.8)
+
+    axFFT1.psd(ySmooth, Fs=fs_)
+    axFFT1.set_xscale('log')
 
     # Convolve with morlet wavelet.
     #ySmoothMorlet = np.convolve(x, scipy.signal.morlet(100, w=5), 'same')
     #ax2.plot(x, ySmoothMorlet, alpha=0.8, label='Morlet')
 
 
-    do_cwt(x, y, axImgReal)
+    #  do_cwt(x, y, axImgReal)
 
     ## CWT
     #widths = np.arange(10e-3/dt_, 100e-3/dt_)
@@ -101,6 +104,7 @@ def process(df):
     a = int(32.2/dt_)
     b = a+6000
     x, y = tvec[a:b], y1[a:b]
+    #  x, y = tvec, y1
     analyze(x, y)
 
     #plot_axis(ax1, tvec, y1)

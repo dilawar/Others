@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 plt.style.use('seaborn-talk')
 import scipy.fftpack as fft
 import pywt
+import analytic_wfm
 import scipy.signal
 import numpy as np
 import pandas as pd
@@ -69,42 +70,56 @@ def analyze(x, y):
     #  y1[y1<thres] = thres
     y1 = y1 - y1.min()
     y1 = y1 / y1.max()
-    ax11 = ax1.twinx()
-    ax11.plot(x, y1, alpha=0.8, color='red')
 
     axFFT.psd(y, NFFT=2048, Fs=fs_, noverlap=56) #, detrend='linear')
     axFFT.set_xscale('log')
 
+    # Band pass
+    extract_osci(x, y1)
 
+def extract_osci(x, y):
     sos = butter_bandpass(lowcut=10, highcut=100, order=20)
-    ySmooth = scipy.signal.sosfilt(sos, y1)
+    ySmooth = scipy.signal.sosfilt(sos, y)
+    ySmooth -= ySmooth.mean()
+    ySmooth = ySmooth / ySmooth.max()
     ax2.plot(x, ySmooth, alpha=0.8)
+
+    # peak detection. Anything faster than 10ms is bogus.
+    drive = smooth(ySmooth, 20e-3)
+    drive = drive - drive.mean()
+    drive = drive / max(drive.max(), -drive.min())
+    ax2.plot(x, drive)
+    maxP, minP = analytic_wfm.peakdetect(drive, x, delta=10e-3)
+    pI, pV = zip(*maxP)
+    ax2.plot(pI, pV, 'k.')
+
+    # Estimate frequency.
+    driveT = np.diff(pI)
+    print(driveT)
+    print(np.mean(driveT))
+
+    
+    #  yMoreSmooth = yMoreSmooth - yMoreSmooth.mean()
+    #  u, s = np.mean(yMoreSmooth), np.std(yMoreSmooth)
+    #  thres = u + 0.5*s
+    #  yMoreSmooth[(yMoreSmooth > thres)] = 1
+    #  yMoreSmooth[(yMoreSmooth < -thres)] = -1
+    #  yMoreSmooth[yMoreSmooth < 0.0 ] = -1e-2
+    #  drive = yMoreSmooth
+    #  ax2.plot(x, drive, alpha=0.8)
 
     axFFT1.psd(ySmooth, Fs=fs_)
     axFFT1.set_xscale('log')
 
-    # Convolve with morlet wavelet.
-    #ySmoothMorlet = np.convolve(x, scipy.signal.morlet(100, w=5), 'same')
-    #ax2.plot(x, ySmoothMorlet, alpha=0.8, label='Morlet')
-
-
-    #  do_cwt(x, y, axImgReal)
-
-    ## CWT
-    #widths = np.arange(10e-3/dt_, 100e-3/dt_)
-    #cwtmatr = scipy.signal.cwt(y, lambda n, w:scipy.signal.morlet(n, w=10), widths)
-    #im = axImgReal.imshow(np.real(cwtmatr)
-    #        , aspect='auto')
-    #  plt.colorbar(im, ax=axImgReal)
-
-
 def process(df):
     tvec = df['Time']
     y1 = df['Trace 0']
-    a = int(32.2/dt_)
-    b = a+6000
-    x, y = tvec[a:b], y1[a:b]
-    #  x, y = tvec, y1
+    if True:
+        a = int(32.2/dt_)
+        b = a+60000
+        x, y = tvec[a:b], y1[a:b]
+    else:
+        x, y = tvec, y1
     analyze(x, y)
 
     #plot_axis(ax1, tvec, y1)

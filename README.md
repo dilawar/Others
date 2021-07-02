@@ -1,2 +1,1 @@
-# Others
-Work for others
+Little help for fellow humans!
